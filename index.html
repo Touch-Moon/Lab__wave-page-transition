@@ -299,11 +299,14 @@
             [{ clipPath: 'inset(0 0 0% 0)' }, { clipPath: 'inset(0 0 100% 0)' }],
             { duration: P.curtain, easing: 'cubic-bezier(0.76,0,0.24,1)', fill: 'forwards' }
           );
+          // Keep it off-screen during the delay too (fill:'both'), so it never
+          // flashes at translateY(0) behind the clone before sliding up.
+          detail.style.transform = 'translateY(100svh)';
           detail.style.display = 'block';
           detail.animate(
             [{ transform: 'translateY(100svh)' }, { transform: 'translateY(0)' }],
             { duration: Math.round(P.curtain * 0.72), delay: Math.round(P.curtain * 0.42),
-              easing: 'cubic-bezier(0.19,1,0.22,1)', fill: 'forwards' }
+              easing: 'cubic-bezier(0.19,1,0.22,1)', fill: 'both' }
           );
           setTimeout(() => { clone.remove(); busy = false; }, P.curtain + 160);
         });
