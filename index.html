@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wave Page Transition</title>
+  <meta name="description" content="A page transition that freezes the thumbnail, runs a travelling wave across it, then curtains up to the next page — with a live control panel." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0d0e11;
+      --fg: #f2f3f5;
+      --dim: rgba(242,243,245,0.5);
+      --line: rgba(242,243,245,0.16);
+      --fill: rgba(242,243,245,0.05);
+      --font-sans: 'Satoshi', system-ui, -apple-system, sans-serif;
+      --font-mono: 'DM Mono', 'Courier New', monospace;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-sans);
+      overflow: hidden;
+    }
+
+    /* ── Cover screen (centered enlarged thumbnail) ─────────────────────── */
+    .cover {
+      position: fixed; inset: 0; z-index: 10;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 1.4rem;
+      transition: opacity 0.45s ease;
+    }
+    body.is-exiting .cover { opacity: 0; }
+
+    .card {
+      width: min(660px, 82vw);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .card__media {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 3 / 2;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #1a1a1f;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.55);
+      transition: transform 0.5s cubic-bezier(0.19,1,0.22,1);
+    }
+    .card:hover .card__media { transform: translateY(-4px); }
+    .card__media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .card__meta {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-top: 0.9rem;
+      font-family: var(--font-mono);
+    }
+    .card__title { font-size: 0.95rem; letter-spacing: 0.02em; }
+    .card__hint {
+      font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--dim);
+    }
+    .cover__caption {
+      font-family: var(--font-mono); font-size: 0.72rem;
+      letter-spacing: 0.18em; text-transform: uppercase; color: var(--dim);
+    }
+
+    /* ── Detail page (revealed) ─────────────────────────────────────────── */
+    .detail {
+      position: fixed; inset: 0; z-index: 100;
+      display: none;
+      background: var(--bg);
+      overflow: hidden;
+      will-change: transform;
+    }
+    .detail__inner {
+      height: 100%;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 1.6rem; padding: 2rem; text-align: center;
+    }
+    .detail__hero {
+      width: min(720px, 84vw);
+      aspect-ratio: 16 / 7;
+      border-radius: 14px; overflow: hidden;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+    }
+    .detail__hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .detail__title { font-weight: 900; font-size: clamp(2rem, 5vw, 3.4rem); letter-spacing: -0.03em; }
+    .detail__body {
+      max-width: 46ch; line-height: 1.6; color: var(--dim);
+      font-size: 0.98rem;
+    }
+    .detail__back {
+      appearance: none; border: 1px solid var(--line); background: var(--fill);
+      color: var(--fg); font-family: var(--font-mono); font-size: 0.74rem;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 0.6rem 1.1rem; border-radius: 999px; cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .detail__back:hover { background: rgba(242,243,245,0.12); border-color: var(--dim); }
+
+    /* ── Transition clone ───────────────────────────────────────────────── */
+    .clone {
+      position: fixed; z-index: 1000;
+      border-radius: 14px; overflow: hidden;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.55);
+      pointer-events: none;
+      will-change: top, clip-path;
+    }
+    .clone canvas { width: 100%; height: 100%; display: block; }
+
+    /* ── Control panel ──────────────────────────────────────────────────── */
+    .panel {
+      position: fixed; top: 22px; right: 22px; z-index: 1100;
+      width: 220px; padding: 16px 16px 14px;
+      border: 1px solid var(--line); border-radius: 16px;
+      background: rgba(18,19,23,0.6);
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    }
+    .panel h2 {
+      font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em;
+      text-transform: uppercase; color: var(--dim); margin-bottom: 13px;
+    }
+    .panel .row { margin-bottom: 11px; }
+    .panel .row:last-child { margin-bottom: 0; }
+    .panel label {
+      display: flex; justify-content: space-between; align-items: center;
+      font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.03em;
+      text-transform: uppercase; color: var(--dim); margin-bottom: 6px;
+    }
+    .panel label output { color: var(--fg); }
+    .panel input[type=range] {
+      -webkit-appearance: none; appearance: none; width: 100%; height: 2px;
+      background: var(--line); border-radius: 2px; cursor: pointer; accent-color: var(--fg);
+    }
+    .panel input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: var(--fg); cursor: pointer;
+    }
+    .panel input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--fg); border: 0; cursor: pointer; }
+    .panel__replay {
+      margin-top: 13px; width: 100%;
+      appearance: none; border: 1px solid var(--line); background: var(--fill);
+      color: var(--fg); font-family: var(--font-mono); font-size: 0.66rem;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 0.5rem; border-radius: 8px; cursor: pointer; transition: background 0.2s, border-color 0.2s;
+    }
+    .panel__replay:hover { background: rgba(242,243,245,0.12); border-color: var(--dim); }
+    @media (max-width: 680px) { .panel { display: none; } }
+  </style>
+</head>
+<body>
+
+  <!-- Cover: centered enlarged thumbnail -->
+  <section class="cover" id="cover">
+    <div class="card" id="card">
+      <div class="card__media"><img id="cardImg" alt="Cover" /></div>
+      <div class="card__meta">
+        <span class="card__title">Wave Page Transition</span>
+        <span class="card__hint">Click to open ↗</span>
+      </div>
+    </div>
+    <p class="cover__caption">Freeze · Wave · Curtain</p>
+  </section>
+
+  <!-- Detail page (revealed by the transition) -->
+  <main class="detail" id="detail">
+    <div class="detail__inner">
+      <div class="detail__hero"><img id="heroImg" alt="Hero" /></div>
+      <h1 class="detail__title">Inside the page</h1>
+      <p class="detail__body">The thumbnail froze on its current frame, a travelling wave swept left→right across it, then a curtain wiped up to reveal this page sliding in from below. Tune every step in the panel and replay.</p>
+      <button class="detail__back" id="back">← Back</button>
+    </div>
+  </main>
+
+  <!-- Control panel -->
+  <aside class="panel" id="panel">
+    <h2>Transition</h2>
+    <div class="row"><label>Wave amplitude <output id="o-amp">20</output></label><input id="i-amp" type="range" min="0" max="60" step="1" value="20" /></div>
+    <div class="row"><label>Wave spread <output id="o-sigma">0.50</output></label><input id="i-sigma" type="range" min="0.2" max="1" step="0.01" value="0.5" /></div>
+    <div class="row"><label>Wave cycles <output id="o-cycles">0.50</output></label><input id="i-cycles" type="range" min="0.25" max="2" step="0.05" value="0.5" /></div>
+    <div class="row"><label>Wave speed <output id="o-speed">0.032</output></label><input id="i-speed" type="range" min="0.012" max="0.08" step="0.002" value="0.032" /></div>
+    <div class="row"><label>Rise <output id="o-rise">480</output></label><input id="i-rise" type="range" min="200" max="1200" step="20" value="480" /></div>
+    <div class="row"><label>Curtain <output id="o-curtain">900</output></label><input id="i-curtain" type="range" min="400" max="1600" step="20" value="900" /></div>
+    <button class="panel__replay" id="replay">▶ Replay</button>
+  </aside>
+
+  <script>
+    // ── Live params (control panel) ─────────────────────────────────────────
+    const P = { amp: 20, sigma: 0.5, cycles: 0.5, speed: 0.032, rise: 480, curtain: 900 };
+
+    // ── Poster artwork (self-contained SVG → drawable image) ────────────────
+    function posterSVG() {
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+        <defs>
+          <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#5b3df5"/><stop offset="0.5" stop-color="#e0419b"/><stop offset="1" stop-color="#f7a23b"/>
+          </linearGradient>
+        </defs>
+        <rect width="1200" height="800" fill="url(#g)"/>
+        <g stroke="rgba(255,255,255,0.28)" stroke-width="2">
+          ${Array.from({length:9},(_,i)=>`<line x1="0" y1="${90+i*78}" x2="1200" y2="${90+i*78}"/>`).join('')}
+        </g>
+        <text x="80" y="470" font-family="Satoshi, sans-serif" font-size="300" font-weight="900" fill="#ffffff" letter-spacing="-12">WAVE</text>
+        <text x="84" y="150" font-family="monospace" font-size="40" fill="rgba(255,255,255,0.85)" letter-spacing="8">01 — TRANSITION</text>
+        <text x="84" y="720" font-family="monospace" font-size="34" fill="rgba(255,255,255,0.85)" letter-spacing="6">CREATIVE MOON · LAB</text>
+      </svg>`;
+    }
+    const POSTER = 'data:image/svg+xml;utf8,' + encodeURIComponent(posterSVG());
+    const posterImg = new Image();
+    posterImg.src = POSTER;
+    document.getElementById('cardImg').src = POSTER;
+    document.getElementById('heroImg').src = POSTER;
+
+    // ── Wave renderer (column-slice drawImage; ported from the site transition) ──
+    function drawFrame(canvas, img, p) {
+      if (!canvas.width || !canvas.height) return;
+      const ctx = canvas.getContext('2d');
+      const nw = img.naturalWidth, nh = img.naturalHeight;
+      if (!nw || !nh) return;
+      const W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+      const ir = nw / nh, cr = W / H;
+      let sx, sy, sw, sh;
+      if (ir > cr) { sh = nh; sw = sh * cr; sx = (nw - sw) / 2; sy = 0; }
+      else { sw = nw; sh = sw / cr; sx = 0; sy = (nh - sh) / 2; }
+      if (p === 0) { ctx.drawImage(img, sx, sy, sw, sh, 0, 0, W, H); return; }
+      const sigma = W * P.sigma, sigmaSq = sigma * sigma;
+      const waveCenter = W + sigma * 1.5 - p * (W + sigma * 3);
+      const freq = (Math.PI * 2 * P.cycles) / (sigma * 2);
+      const dpr = window.devicePixelRatio || 1;
+      const ampPx = P.amp * dpr;
+      const colW = Math.max(1, Math.round(dpr));
+      for (let x = 0; x < W; x += colW) {
+        const d = x - waveCenter;
+        const gauss = Math.exp(-(d * d) / sigmaSq);
+        const dy = ampPx * Math.sin(d * freq) * gauss;
+        const srcX = sx + (x / W) * sw;
+        const srcW = Math.max((colW / W) * sw, 0.5);
+        ctx.drawImage(img, srcX, sy, srcW, sh, x, dy, colW, H);
+      }
+    }
+    function runWave(canvas, img, done) {
+      let pr = 0;
+      const loop = () => {
+        pr += P.speed;
+        if (pr >= 1) { drawFrame(canvas, img, 0); done(); return; }
+        drawFrame(canvas, img, pr);
+        requestAnimationFrame(loop);
+      };
+      requestAnimationFrame(loop);
+    }
+
+    // ── Transition ──────────────────────────────────────────────────────────
+    const cover  = document.getElementById('cover');
+    const card   = document.getElementById('card');
+    const detail = document.getElementById('detail');
+    const back   = document.getElementById('back');
+    let busy = false;
+
+    function open() {
+      if (busy) return;
+      busy = true;
+      const media = card.querySelector('.card__media');
+      const rect = media.getBoundingClientRect();
+      document.body.classList.add('is-exiting');
+
+      const clone = document.createElement('div');
+      clone.className = 'clone';
+      clone.style.top = rect.top + 'px';
+      clone.style.left = rect.left + 'px';
+      clone.style.width = rect.width + 'px';
+      clone.style.height = rect.height + 'px';
+      clone.style.clipPath = 'inset(0 0 0% 0)';
+      const cv = document.createElement('canvas');
+      const dpr = window.devicePixelRatio || 1;
+      cv.width = Math.round(rect.width * dpr);
+      cv.height = Math.round(rect.height * dpr);
+      clone.appendChild(cv);
+      document.body.appendChild(clone);
+      drawFrame(cv, posterImg, 0);
+
+      // 1) rise to top
+      const topGutter = Math.min(window.innerHeight * 0.08, 72);
+      const riseAnim = clone.animate(
+        [{ top: rect.top + 'px' }, { top: topGutter + 'px' }],
+        { duration: P.rise, easing: 'cubic-bezier(0.76,0,0.24,1)', fill: 'forwards' }
+      );
+      riseAnim.onfinish = () => {
+        // 2) wave
+        runWave(cv, posterImg, () => {
+          // 3) curtain up + detail slides in from below
+          clone.animate(
+            [{ clipPath: 'inset(0 0 0% 0)' }, { clipPath: 'inset(0 0 100% 0)' }],
+            { duration: P.curtain, easing: 'cubic-bezier(0.76,0,0.24,1)', fill: 'forwards' }
+          );
+          detail.style.display = 'block';
+          detail.animate(
+            [{ transform: 'translateY(100svh)' }, { transform: 'translateY(0)' }],
+            { duration: Math.round(P.curtain * 0.72), delay: Math.round(P.curtain * 0.42),
+              easing: 'cubic-bezier(0.19,1,0.22,1)', fill: 'forwards' }
+          );
+          setTimeout(() => { clone.remove(); busy = false; }, P.curtain + 160);
+        });
+      };
+    }
+
+    function close() {
+      if (busy) return;
+      busy = true;
+      const a = detail.animate(
+        [{ transform: 'translateY(0)' }, { transform: 'translateY(100svh)' }],
+        { duration: 620, easing: 'cubic-bezier(0.76,0,0.24,1)', fill: 'forwards' }
+      );
+      a.onfinish = () => {
+        detail.style.display = 'none';
+        detail.getAnimations().forEach((an) => an.cancel());
+        detail.style.transform = '';
+        document.body.classList.remove('is-exiting');
+        busy = false;
+      };
+    }
+
+    card.addEventListener('click', open);
+    back.addEventListener('click', close);
+    document.getElementById('replay').addEventListener('click', () => {
+      if (detail.style.display === 'block') { close(); setTimeout(open, 750); }
+      else open();
+    });
+
+    // ── Control panel wiring ──────────────────────────────────────────────────
+    const bind = (id, key, fmt) => {
+      const inp = document.getElementById('i-' + id);
+      const out = document.getElementById('o-' + id);
+      const upd = () => { P[key] = parseFloat(inp.value); out.textContent = fmt(P[key]); };
+      inp.addEventListener('input', upd); upd();
+    };
+    bind('amp', 'amp', (v) => String(Math.round(v)));
+    bind('sigma', 'sigma', (v) => v.toFixed(2));
+    bind('cycles', 'cycles', (v) => v.toFixed(2));
+    bind('speed', 'speed', (v) => v.toFixed(3));
+    bind('rise', 'rise', (v) => String(Math.round(v)));
+    bind('curtain', 'curtain', (v) => String(Math.round(v)));
+  </script>
+</body>
+</html>
