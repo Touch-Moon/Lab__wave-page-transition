@@ -88,9 +88,9 @@
       text-align: center;
     }
     .detail__hero {
-      width: min(680px, 82vw);
-      aspect-ratio: 16 / 7;
-      max-height: 42vh;               /* keeps the whole column inside the viewport */
+      height: min(46vh, 400px);       /* height-driven so the column fits the viewport */
+      max-width: 86vw;                /* clamps width on narrow screens (ratio preserved) */
+      aspect-ratio: 3 / 2;            /* match the poster + cover card → show it whole, no crop */
       border-radius: 14px; overflow: hidden;
       box-shadow: 0 24px 60px rgba(0,0,0,0.22);
     }
